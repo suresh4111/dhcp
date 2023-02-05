@@ -1,0 +1,146 @@
+
+===================DHCP===============================
+yum install dhcp* -y
+cp /usr/share/doc/dhcp-4.2.5/dhcpd.conf.example /etc/dhcp/dhcpd.conf 
+vim /etc/dhcp/dhcpd.conf
+		
+         option domain-name-servers 192.168.100.10;
+         subnet 192.168.71.0 netmask 255.255.255.0{
+               range 192.168.71.20 192.168.71.30;
+               option routers 192.168.71.10;
+         filename "pxelinux.0";
+         next-server 192.168.71.10;
+         }
+                           
+systemctl stop firewalld
+systemctl status firewalld
+setenforce 0
+systemctl start dhcpd
+vim /etc/dhcp/dhcpd.conf
+
+yum install syslinux xinetd tftp-server
+mkdir /var/lib/tftpboot/pxelinux.cfg
+cp /usr/share/syslinux/pxelinux.0 /var/lib/tftpboot/:q
+
+44  vim /etc/xinetd.d/tftp
+service tftp
+{
+        socket_type             = dgram
+        protocol                = udp
+        wait                    = yes
+        user                    = root
+        server                  = /usr/sbin/in.tftpd
+        server_args             = -s /var/lib/tftpboot
+        disable                 = no
+        per_source              = 11
+        cps                     = 100 2
+        flags                   = IPv4
+}
+~                                       
+
+
+48  mkdir -p /var/pxe/centos7
+mount -t iso9660 -o loop /dev/cdrom /var/pxe/centos7
+  76  cp /var/pxe/centos7/images/pxeboot/vmlinuz /var/lib/tftpboot/centos7/
+  77  cp /var/pxe/centos7/images/pxeboot/initrd.img /var/lib/tftpboot/centos7/
+cp /usr/share/syslinux/menu.c32 /var/lib/tftpboot/
+vim /var/lib/tftpboot/pxelinux.cfg/default
+#creating pxe defination
+timeout 100
+default menu.c32
+menu title #####PXE BOOT MENUE ###
+label 1
+        menu label ^1) Install centos7
+        kernel centos7/vmlinuz
+        append initrd=centos7/initrd.img ks=http://192.168.71.10/ks/centos7-ks.cfg
+label 2
+        menu label ^2) Boot from local drive
+        localboot
+
+
+yum install httpd
+   82  systemctl start httpd
+   83  systemctl status httpd
+   84  systemctl enable httpd
+   85  systemctl status httpd
+
+
+vim /etc/httpd/conf.d/pxeboot.conf
+
+
+lias /centos7 /var/pxe/centos7
+<Directory /var/pxe/centos7>
+        options Indexes FollowSymlinks
+        Require ip 127.0.0.1 192.168.71.0/24
+</Directory>
+~            
+
+
+systemctl restart httpd
+systemctl enable httpd
+
+
+
+stop firewall
+
+==================================kickstart============================
+
+python -c 'import crypt,getpass; \
+  145  print(crypt.crypt(getpass.getpass(), \
+  146  crypt.mksalt(crypt.METHOD_SHA512)))'
+
+
+mkdir /var/www/html/ks
+  162  vim /var/www/html/ks/centos7-ks.cfg 
+  163  chmod 664 /var/www/html/ks/centos7-ks.cfg 
+
+
+
+
+vim /var/www/html/ks/centos7-ks.cfg 
+
+#create new
+install
+# automatically proceed for each steps
+autostep
+# reboot after installing
+reboot
+# encrypt algorithm
+auth --enableshadow --passalgo=sha512
+# installation source
+url --url=http://192.168.71.10/centos7/
+# install disk
+ignoredisk --only-use=sda
+# keyboard layouts
+keyboard --vckeymap=jp106 --xlayouts='jp','us'
+# system locale
+lang en_US.UTF-8
+# network settings
+network --bootproto=dhcp --ipv6=auto --activate --hostname=localhost
+# root password you generated above
+rootpw --iscrypted $6$dh5Gpk.mJnuaDOAf$9HEQr5FvJH8YVWjYJhbBlH44HojBgH.w5rPUXx4aD4KNXwqi9uPtl84Y7N0CcCQ.AbX2uZZt/q/dEobAuTUky0
+# timezone
+timezone Asia/Kolkata --isUtc --nontp
+# bootloader's settings
+bootloader --location=mbr --boot-drive=sda
+# initialize all partition tables
+zerombr
+clearpart --all --initlabel
+autopart --type=lvm
+
+%packages
+@core
+
+%end
+
+  207  systemctl restart dhcpd.service 
+  208  systemctl restart xinetd.service 
+  209  systemctl restart tftp.service 
+  210  systemctl status firewalld.service 
+
+
+
+
+
+
+
